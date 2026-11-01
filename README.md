@@ -4,7 +4,7 @@ A spectral classification game. Each round shows a real rectified spectrum (3900
 MELCHIORS library. Read the absorption lines and name the star's MK spectral type. If you miss, the
 game explains the right answer using line-ratio criteria and equivalent widths measured on that spectrum.
 
-**Play:** https://acanamero.github.io/StarGuessr/ (or /spectredle/ until the repository is renamed)
+**Play:** https://acanamero.github.io/StarGuessr/
 
 - 28 stars from O4 to M1, dwarfs (V) and supergiants (I)
 - Exact answer: 100 pts; within one subtype: 70 pts with an explanation of why it isn't that type
