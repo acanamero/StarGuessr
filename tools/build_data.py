@@ -1,4 +1,4 @@
-"""Build spectra data + line measurements for Spectredle.
+"""Build spectra data + line measurements for StarGuessr.
 Usage: python -I build_data.py <dat_dir> <out_js>"""
 import sys, os, re, json, math
 import numpy as np

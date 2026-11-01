@@ -1,3 +1,4 @@
+import sys
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.formatting.rule import FormulaRule
@@ -211,5 +212,5 @@ ws.conditional_formatting.add(rng, FormulaRule(formula=[f'D{first}="Correct"'], 
 ws.conditional_formatting.add(rng, FormulaRule(formula=[f'D{first}="Try again"'], fill=PatternFill("solid", fgColor="FFC7CE")))
 ws.freeze_panes = "A4"
 
-wb.save("/home/user/spectredle/Spectredle_study_sheet.xlsx")
+wb.save(sys.argv[1] if len(sys.argv) > 1 else "StarGuessr_study_sheet.xlsx")
 print("saved")

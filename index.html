@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Spectredle</title>
-<meta name="description" content="Spectredle: a spectral classification game. Read the absorption lines of real MELCHIORS spectra and name the star.">
+<title>StarGuessr</title>
+<meta name="description" content="StarGuessr: a spectral classification game. Read the absorption lines of real MELCHIORS spectra and name the star.">
 <meta name="theme-color" content="#151311">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -124,6 +124,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
 .ghost:hover { border-color: var(--ink-dim); }
 
+/* About / credits footer */
+.about { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px 28px; margin-top: 18px; padding: 22px 4px 0; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: 14px; }
+.about h2 { font-size: 15px; color: var(--ink); margin-bottom: 8px; }
+.about p { margin: 0 0 8px; max-width: 68ch; }
+.about strong { color: var(--ink); font-weight: 600; }
+.about a { color: var(--accent); }
+.about .updated { grid-column: 1 / -1; font-size: 12px; font-family: var(--font-mono); }
+a.iconbtn { color: inherit; text-decoration: none; }
+@media (max-width: 760px) { .about { grid-template-columns: 1fr; } }
+
 /* Overlays */
 .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(10, 9, 8, .82); display: grid; place-items: center; padding: 16px; }
 .overlay[hidden] { display: none; }
@@ -184,7 +194,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
   <header class="hud">
     <div class="brand">
-      <h1>Spectredle<span class="dot">.</span></h1>
+      <h1>StarGuessr<span class="dot">.</span></h1>
       <span class="tag">Read the absorption lines. Name the star.</span>
     </div>
     <div class="stats">
@@ -192,6 +202,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <div class="stat"><b id="sStreak">0</b><span>Streak</span></div>
       <div class="stat"><b id="sCleared">0/28</b><span>Cleared</span></div>
       <button class="iconbtn" id="btnHelp" type="button">How to play</button>
+      <a class="iconbtn" href="#about">About</a>
     </div>
   </header>
 
@@ -227,11 +238,25 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   </section>
 
   <section class="feedback" id="feedback" hidden aria-live="polite"></section>
+
+  <footer class="about" id="about">
+    <div>
+      <h2>About</h2>
+      <p>Hi! I'm <strong>Alejandro Cañamero</strong>, a physics graduate currently doing a master's in astrophysics at the Universidad de La Laguna (ULL). I made StarGuessr to make studying stellar spectra a little more fun.</p>
+      <p>There are only 28 spectra for now, but I'll keep adding more.</p>
+    </div>
+    <div>
+      <h2>Credits</h2>
+      <p><strong>Spectra:</strong> all spectra come from the <a href="https://www.royer.se/melchiors.html">MELCHIORS</a> database, the Mercator Library of High Resolution Stellar Spectroscopy (Royer et al. 2024, <a href="https://doi.org/10.1051/0004-6361/202346847">A&amp;A 681, A107</a>), observed with the HERMES spectrograph on the Mercator telescope. Full credit for the data goes to the MELCHIORS team.</p>
+      <p><strong>Line criteria:</strong> the classification criteria and explanations follow the course notes <em>Atmósferas Estelares, Tema 1 · Líneas de diagnóstico y clases de luminosidad</em> by <strong>Sara Rodríguez Berlanas</strong> and <strong>Artemio Herrero</strong>, based on Maíz Apellániz, Negueruela &amp; Caballero (2024, <a href="https://arxiv.org/abs/2410.07301">arXiv:2410.07301</a>) and Gray &amp; Corbally (2009). The ratio summary table is by A. Herrero &amp; A. Escorza.</p>
+    </div>
+    <p class="updated">Last updated: <time id="lastUpdated">—</time></p>
+  </footer>
 </div>
 
 <div class="overlay" id="help" hidden>
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-    <h2 id="helpTitle">How to play Spectredle</h2>
+    <h2 id="helpTitle">How to play StarGuessr</h2>
     <p>Each round shows a <strong>real rectified spectrum</strong> (3900–6800 Å) from the MELCHIORS library. Read the absorption lines and give its MK spectral type.</p>
     <ul>
       <li><strong>Exact type</strong>: 100 pts. <strong>Within one subtype</strong> (e.g. B2 for a B3; for G stars, the neighbouring standard subtype of G0, G2, G5, G8, K0): accepted for 70 pts, with an explanation of why it isn't quite that type.</li>
@@ -240,7 +265,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
       <li><strong>Line IDs</strong> overlay the diagnostic lines but cost 30% of the round's points. Streaks add bonus points.</li>
       <li>Clear all 28 stars to finish the run.</li>
     </ul>
-    <p>New to this? Download the <a href="https://github.com/acanamero/Spectredle/raw/main/Spectredle_study_sheet.xlsx" style="color:var(--accent)">study sheet</a> (criteria for each class, line list, suffixes and a self-quiz) before you play.</p>
+    <p>New to this? Download the <a href="https://github.com/acanamero/spectredle/raw/main/StarGuessr_study_sheet.xlsx" style="color:var(--accent)">study sheet</a> (criteria for each class, line list, suffixes and a self-quiz) before you play.</p>
     <p class="fine">Criteria follow the course notes <em>Atmósferas Estelares, Tema 1 · Líneas de diagnóstico y clases de luminosidad</em> by Sara Rodríguez Berlanas &amp; Artemio Herrero (after Maíz Apellániz, Negueruela &amp; Caballero 2024; Gray &amp; Corbally 2009). Equivalent widths in the feedback are measured automatically on each spectrum and are approximate.</p>
     <div class="btnrow"><button class="go" id="btnHelpClose" type="button">LET'S GO</button></div>
   </div>
@@ -518,8 +543,8 @@ const state = {
 };
 const $ = id => document.getElementById(id);
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("spectredle." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("spectredle." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+  get(k, d) { try { const v = localStorage.getItem("starguessr." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("starguessr." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
 };
 
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -669,7 +694,7 @@ function shareText() {
   const sq = { exact: "🟩", near: "🟨", miss: "🟥" };
   const rows = []; const seq = DATA.slice().sort((a, b) => a.n - b.n).map(s => sq[state.first[s.idx]] || "⬛");
   for (let i = 0; i < seq.length; i += 7) rows.push(seq.slice(i, i + 7).join(""));
-  return `Spectredle ${state.score} pts · ${Object.values(state.first).filter(v => v !== "miss").length}/${DATA.length} first try${state.lcMode ? " · expert" : ""}\nO → M\n${rows.join("\n")}`;
+  return `StarGuessr ${state.score} pts · ${Object.values(state.first).filter(v => v !== "miss").length}/${DATA.length} first try${state.lcMode ? " · expert" : ""}\nO → M\n${rows.join("\n")}`;
 }
 
 /* ================= Pickers ================= */
@@ -865,6 +890,18 @@ $("btnCopy").onclick = async () => {
   catch { $("copyMsg").innerHTML = "Copy failed. Select and copy this text:<pre style='white-space:pre-wrap'>" + shareText() + "</pre>"; }
 };
 window.addEventListener("resize", resize);
+
+/* ================= Last updated ================= */
+(function lastUpdated() {
+  const el = $("lastUpdated");
+  const show = d => { if (isNaN(d)) return; el.dateTime = d.toISOString().slice(0, 10); el.textContent = d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }); };
+  show(new Date(document.lastModified));
+  if (!/github\.io$/.test(location.hostname)) return;
+  fetch("https://api.github.com/repos/acanamero/spectredle/commits?per_page=1")
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(c => show(new Date(c[0].commit.committer.date)))
+    .catch(() => { /* keep the file timestamp */ });
+})();
 
 /* ================= Boot ================= */
 buildPads(); buildToolbar();
