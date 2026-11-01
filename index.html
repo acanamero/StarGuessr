@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectredle</title>
+<meta name="description" content="Spectredle: a spectral classification game. Read the absorption lines of real MELCHIORS spectra and name the star.">
+<meta name="theme-color" content="#151311">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Warm graphite "observatory at night" world: no blue glow. Orange sodium-lamp accent,
+   pixel display face for game elements, plain sans for reading.
+   Layout: HUD row, spectrum screen as hero (with a true-colour wavelength strip),
+   answer console, feedback panel. Stacks to one column on phones. */
+:root {
+  color-scheme: dark;
+  --bg: #151311;
+  --panel: #1e1b18;
+  --well: #0f0d0b;
+  --line: #36302a;
+  --ink: #f2ece1;
+  --ink-dim: #a89e8f;
+  --accent: #ff8f3f;
+  --accent-deep: #b55a1b;
+  --good: #7ccf8a;
+  --near: #f2c14e;
+  --bad: #ff6159;
+  --O: #7fa6ff; --B: #a8c0ff; --A: #e6e9f5; --F: #fff6dc; --G: #ffe08a; --K: #ffad5c; --M: #ff6b4a;
+  --font-display: "Silkscreen", "Courier New", monospace;
+  --font-body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+.wrap > * { min-width: 0; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 18px 20px 48px; display: grid; gap: 14px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 400; text-wrap: balance; margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* HUD */
+.hud { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; }
+.brand { display: grid; margin-right: auto; }
+.brand h1 { font-size: 34px; letter-spacing: .02em; line-height: 1.05; }
+.brand h1 .dot { color: var(--accent); }
+.brand .tag { color: var(--ink-dim); font-size: 13.5px; }
+.stats { display: flex; gap: 22px; align-items: center; }
+.stat { display: grid; text-align: right; }
+.stat b { font-family: var(--font-display); font-weight: 400; font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-dim); }
+.iconbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.iconbtn:hover { border-color: var(--ink-dim); }
+
+/* Screen */
+.screen { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.screen-top { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin-bottom: 10px; }
+.target { font-family: var(--font-display); font-size: 17px; }
+.target small { font-family: var(--font-body); color: var(--ink-dim); font-size: 13px; margin-left: 6px; }
+.readout { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; min-width: 210px; text-align: right; }
+.plotbox { position: relative; height: 360px; border-radius: 8px; overflow: hidden; background: var(--well); border: 1px solid var(--line); touch-action: pan-y; }
+#plot { width: 100%; height: 100%; display: block; cursor: crosshair; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.chip { background: var(--well); border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap; }
+.chip:hover { color: var(--ink); border-color: var(--ink-dim); }
+.chip.on { color: var(--well); background: var(--accent); border-color: var(--accent); }
+.toolbar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.legend label { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-dim); background: var(--well); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.legend input { accent-color: var(--accent); }
+.legend .sw { width: 10px; height: 10px; border-radius: 2px; }
+.hintnote { font-size: 12.5px; color: var(--ink-dim); }
+
+/* Console */
+.console { display: grid; grid-template-columns: 1fr auto; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.pickers { display: grid; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row .lbl { width: 92px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
+.key { min-width: 42px; height: 42px; padding: 0 10px; border-radius: 6px; background: var(--well); border: 1px solid var(--line); border-bottom-width: 3px; font-family: var(--font-display); font-size: 17px; transition: transform .06s; }
+.key:hover { border-color: var(--ink-dim); }
+.key:active { transform: translateY(2px); border-bottom-width: 1px; }
+.key.cls { color: var(--c); }
+.key.sel { background: var(--c, var(--accent)); color: var(--well); border-color: transparent; }
+.key.small { min-width: 38px; height: 38px; font-size: 15px; }
+.key[disabled] { opacity: .3; cursor: not-allowed; }
+.submitcol { display: grid; gap: 10px; align-content: start; min-width: 240px; }
+#answer { width: 100%; background: var(--well); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-family: var(--font-display); font-size: 22px; padding: 8px 12px; letter-spacing: .04em; }
+.go { background: var(--accent); color: var(--well); border: 0; border-radius: 8px; font-family: var(--font-display); font-size: 17px; padding: 12px 18px; letter-spacing: .04em; box-shadow: 0 5px 0 var(--accent-deep); }
+.go:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-deep); }
+.go[disabled] { opacity: .4; cursor: not-allowed; }
+.msg { font-size: 13px; color: var(--bad); min-height: 20px; }
+.toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-dim); }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* Feedback */
+.feedback { border-radius: 12px; border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
+.fb-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); border-left: 5px solid var(--line); }
+.fb-head.good { border-left-color: var(--good); }
+.fb-head.near { border-left-color: var(--near); }
+.fb-head.bad { border-left-color: var(--bad); }
+.verdict { font-family: var(--font-display); font-size: 24px; }
+.fb-head.good .verdict { color: var(--good); } .fb-head.near .verdict { color: var(--near); } .fb-head.bad .verdict { color: var(--bad); }
+.truth { font-size: 14px; color: var(--ink-dim); }
+.truth b { font-family: var(--font-display); font-weight: 400; color: var(--ink); font-size: 17px; }
+.points { margin-left: auto; font-family: var(--font-display); font-size: 19px; color: var(--accent); }
+.fb-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; padding: 18px; }
+.fb-body h3 { font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.fb-body p { margin: 0 0 10px; max-width: 68ch; }
+.fb-body .why { display: grid; gap: 14px; align-content: start; }
+.callout { background: var(--well); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; }
+.callout.warn { border-left-color: var(--near); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.tile { background: var(--well); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.tile.key-tile { border-color: var(--accent); }
+.tile span { display: block; font-size: 11.5px; color: var(--ink-dim); }
+.tile b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; font-size: 15px; }
+.fine { font-size: 12px; color: var(--ink-dim); }
+.ladder { background: var(--well); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px 4px; }
+.ladder .t { font-size: 13px; font-weight: 600; }
+.ladder svg { width: 100%; height: auto; display: block; }
+.fb-foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; padding: 0 18px 18px; }
+.ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+.ghost:hover { border-color: var(--ink-dim); }
+
+/* Overlays */
+.overlay { position: fixed; inset: 0; z-index: 10; background: rgba(10, 9, 8, .82); display: grid; place-items: center; padding: 16px; }
+.overlay[hidden] { display: none; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; max-width: 640px; width: 100%; max-height: 90vh; max-height: 90dvh; overflow: auto; display: grid; gap: 14px; }
+.card h2 { font-size: 24px; }
+.card p, .card li { color: var(--ink-dim); }
+.card ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.card strong { color: var(--ink); }
+.grid28 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.grid28 div { aspect-ratio: 1; border-radius: 6px; display: grid; place-items: center; font-family: var(--font-display); font-size: 11px; color: var(--well); }
+.bigstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.bigstats b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 24px; }
+.bigstats span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-dim); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+
+.pop { animation: pop .3s ease-out; }
+@keyframes pop { from { transform: translateY(6px); opacity: .4; } to { transform: none; opacity: 1; } }
+.shake { animation: shake .4s; }
+@keyframes shake { 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .pop, .shake { animation: none; } }
+
+@media (max-width: 860px) {
+  .console { grid-template-columns: 1fr; }
+  .submitcol { min-width: 0; }
+  .fb-body { grid-template-columns: 1fr; }
+  .plotbox { height: 300px; }
+  .readout { min-width: 0; margin-left: 0; text-align: left; flex-basis: 100%; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 12px 16px 32px; gap: 12px; }
+  .hud { gap: 10px; }
+  .brand { flex-basis: 100%; }
+  .brand h1 { font-size: 28px; }
+  .stats { flex: 1; justify-content: space-between; gap: 10px; }
+  .stat { text-align: left; }
+  .screen, .console { padding: 12px; border-radius: 10px; }
+  .plotbox { height: 240px; }
+  #presets { flex-wrap: nowrap; overflow-x: auto; margin-left: -12px; margin-right: -12px; padding: 0 12px 2px; scrollbar-width: none; }
+  #presets::-webkit-scrollbar { display: none; }
+  .hintnote { flex-basis: 100%; }
+  .toolbar .sep { display: none; }
+  .row .lbl { width: 100%; }
+  .pickers .row > .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); width: 100%; gap: 6px; }
+  .key, .key.small { min-width: 0; height: 44px; padding: 0; }
+  .fb-head { padding: 14px; }
+  .points { margin-left: 0; flex-basis: 100%; }
+  .fb-body { padding: 14px; }
+  .fb-foot { padding: 0 14px 14px; }
+  .fb-foot button { flex: 1 1 100%; }
+  .card { padding: 18px; }
+  .bigstats { grid-template-columns: repeat(2, 1fr); }
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hud">
+    <div class="brand">
+      <h1>Spectredle<span class="dot">.</span></h1>
+      <span class="tag">Read the absorption lines. Name the star.</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="sScore">0</b><span>Score</span></div>
+      <div class="stat"><b id="sStreak">0</b><span>Streak</span></div>
+      <div class="stat"><b id="sCleared">0/28</b><span>Cleared</span></div>
+      <button class="iconbtn" id="btnHelp" type="button">How to play</button>
+    </div>
+  </header>
+
+  <section class="screen" aria-label="Spectrum viewer">
+    <div class="screen-top">
+      <div class="target" id="target">Spectrum #1 <small>rectified · MELCHIORS</small></div>
+      <div class="readout" id="readout">λ — Å · F/Fc —</div>
+    </div>
+    <div class="plotbox"><canvas id="plot" aria-label="Rectified spectrum plot"></canvas></div>
+    <div class="toolbar" id="presets"></div>
+    <div class="toolbar">
+      <button class="chip" id="btnLines" type="button">Show line IDs (hint, −30% pts)</button>
+      <button class="chip" id="btnSmooth" type="button">Smooth to R≈2500</button>
+      <span class="sep"></span>
+      <span class="hintnote">Drag on the plot to zoom · scroll to zoom · double-click to reset</span>
+    </div>
+    <div class="legend" id="legend" hidden></div>
+  </section>
+
+  <section class="console" aria-label="Your classification">
+    <div class="pickers">
+      <div class="row"><span class="lbl">Class</span><span class="row" id="padClass"></span></div>
+      <div class="row"><span class="lbl">Subtype</span><span class="row" id="padSub"></span></div>
+      <div class="row" id="lcRow"><span class="lbl">Luminosity</span><span class="row" id="padLC"></span></div>
+    </div>
+    <div class="submitcol">
+      <label class="fine" for="answer">Your spectral type (e.g. B2, O7.5, K4.5 I)</label>
+      <div class="answer"><input id="answer" autocomplete="off" spellcheck="false" placeholder="B2 V"></div>
+      <button class="go" id="btnGo" type="button">CLASSIFY</button>
+      <div class="msg" id="msg" role="status"></div>
+      <label class="toggle"><input type="checkbox" id="optLC"> Expert mode: also grade luminosity class</label>
+    </div>
+  </section>
+
+  <section class="feedback" id="feedback" hidden aria-live="polite"></section>
+</div>
+
+<div class="overlay" id="help" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">How to play Spectredle</h2>
+    <p>Each round shows a <strong>real rectified spectrum</strong> (3900–6800 Å) from the MELCHIORS library. Read the absorption lines and give its MK spectral type.</p>
+    <ul>
+      <li><strong>Exact type</strong>: 100 pts. <strong>Within one subtype</strong> (e.g. B2 for a B3; for G stars, the neighbouring standard subtype of G0, G2, G5, G8, K0): accepted for 70 pts, with an explanation of why it isn't quite that type.</li>
+      <li><strong>Miss</strong>: you get the real type and the line ratios that give it away. The star returns later in the run so you can try it again.</li>
+      <li><strong>Expert mode</strong> also grades the luminosity class (I–V): +50 exact, +25 one class off.</li>
+      <li><strong>Line IDs</strong> overlay the diagnostic lines but cost 30% of the round's points. Streaks add bonus points.</li>
+      <li>Clear all 28 stars to finish the run.</li>
+    </ul>
+    <p>New to this? Download the <a href="https://github.com/acanamero/Spectredle/raw/main/Spectredle_study_sheet.xlsx" style="color:var(--accent)">study sheet</a> (criteria for each class, line list, suffixes and a self-quiz) before you play.</p>
+    <p class="fine">Criteria follow the course notes <em>Atmósferas Estelares, Tema 1 · Líneas de diagnóstico y clases de luminosidad</em> by Sara Rodríguez Berlanas &amp; Artemio Herrero (after Maíz Apellániz, Negueruela &amp; Caballero 2024; Gray &amp; Corbally 2009). Equivalent widths in the feedback are measured automatically on each spectrum and are approximate.</p>
+    <div class="btnrow"><button class="go" id="btnHelpClose" type="button">LET'S GO</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="endscreen" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+    <h2 id="endTitle">Run complete</h2>
+    <div class="bigstats" id="endStats"></div>
+    <div class="grid28" id="endGrid"></div>
+    <p class="fine">Each square is a star, coloured by your first try: green exact, yellow within one subtype, red missed.</p>
+    <div class="btnrow">
+      <button class="ghost" id="btnCopy" type="button">Copy result</button>
+      <button class="go" id="btnAgain" type="button">PLAY AGAIN</button>
+    </div>
+    <div class="fine" id="copyMsg" role="status"></div>
+  </div>
+</div>
+
+<script src="spectra.js"></script>
+<script>
+"use strict";
+/* ================= Data & constants ================= */
+const DATA = window.SPECTRA || [];
+const CLASSES = ["O", "B", "A", "F", "G", "K", "M"];
+const LCS = ["I", "II", "III", "IV", "V"];
+const css = getComputedStyle(document.documentElement);
+const TOK = n => css.getPropertyValue("--" + n).trim();
+const CLR = Object.fromEntries(CLASSES.map(c => [c, css.getPropertyValue("--" + c).trim()]));
+const num = (cls, sub) => CLASSES.indexOf(cls) * 10 + sub;
+const typeStr = (cls, sub) => cls + (Number.isInteger(sub) ? sub : sub.toFixed(1));
+const lcRank = lc => ({ I: 1, II: 2, III: 3, IV: 4, V: 5 })[lc];
+const LC_NAME = { I: "supergiant", II: "bright giant", III: "giant", IV: "subgiant", V: "dwarf (main sequence)" };
+
+const GROUPS = {
+  H: { name: "H Balmer", color: "#f0d58c" },
+  HeI: { name: "He I", color: "#ff7a8a" },
+  HeII: { name: "He II", color: "#ffb454" },
+  ion: { name: "Ionized metals", color: "#d79bff" },
+  neu: { name: "Neutral metals", color: "#6fe0b0" },
+  mol: { name: "Molecular bands", color: "#e0a070" },
+  IS: { name: "Interstellar", color: "#9a9286" },
+};
+const LINES = [
+  [3970.1, "Hε", "H"], [4101.7, "Hδ", "H"], [4340.5, "Hγ", "H"], [4861.3, "Hβ", "H"], [6562.8, "Hα", "H"],
+  [4009.3, "He I 4009", "HeI"], [4026.2, "He I 4026", "HeI"], [4120.8, "He I 4121", "HeI"], [4143.8, "He I 4144", "HeI"],
+  [4387.9, "He I 4388", "HeI"], [4471.5, "He I 4471", "HeI"], [4713.1, "He I 4713", "HeI"], [4921.9, "He I 4922", "HeI"],
+  [5015.7, "He I 5016", "HeI"], [5875.6, "He I 5876", "HeI"], [6678.2, "He I 6678", "HeI"],
+  [4199.8, "He II 4200", "HeII"], [4541.6, "He II 4542", "HeII"], [4685.7, "He II 4686", "HeII"], [5411.5, "He II 5411", "HeII"],
+  [3933.7, "Ca II K", "ion"], [3968.5, "Ca II H", "ion"], [3995.0, "N II 3995", "ion"], [4057.8, "N IV 4058", "ion"],
+  [4077.7, "Sr II 4077", "ion"], [4088.9, "Si IV 4089", "ion"], [4116.1, "Si IV 4116", "ion"], [4128.1, "Si II 4128", "ion"],
+  [4130.9, "Si II 4131", "ion"], [4173.5, "Fe II 4173", "ion"], [4215.5, "Sr II 4216", "ion"], [4374.9, "Y II 4376", "ion"],
+  [4395.0, "Ti II 4395", "ion"], [4415.0, "O II 4415", "ion"], [4481.2, "Mg II 4481", "ion"], [4552.6, "Si III 4552", "ion"],
+  [4567.8, "Si III 4568", "ion"], [4574.8, "Si III 4575", "ion"], [4634.1, "N III 4634", "ion"], [4640.6, "N III 4641", "ion"],
+  [4647.4, "C III 4647", "ion"],
+  [4030.8, "Mn I 4030", "neu"], [4045.8, "Fe I 4046", "neu"], [4143.9, "Fe I 4144", "neu"], [4226.7, "Ca I 4226", "neu"],
+  [4250.8, "Fe I 4250", "neu"], [4254.3, "Cr I 4254", "neu"], [4271.8, "Fe I 4271", "neu"], [4289.7, "Cr I 4290", "neu"],
+  [4325.8, "Fe I 4326", "neu"], [4383.5, "Fe I 4383", "neu"], [5167.3, "Mg I b", "neu"], [5172.7, "", "neu"], [5183.6, "", "neu"],
+  [5890.0, "Na I D", "neu"], [5895.9, "", "neu"],
+  [4305.0, "G band (CH)", "mol"], [4584, "TiO 4584", "mol"], [4626, "TiO 4626", "mol"], [4761, "TiO 4761", "mol"],
+  [4804, "TiO 4804", "mol"], [4954, "TiO 4954", "mol"], [5167, "TiO 5167", "mol"], [5448, "TiO 5448", "mol"], [6159, "TiO 6159", "mol"],
+  [4780, "MgH 4780", "mol"],
+  [4428, "DIB 4428", "IS"], [5780.5, "DIB 5780", "IS"], [5797.1, "DIB 5797", "IS"],
+];
+
+const MAJOR = new Set(["Hε", "Hδ", "Hγ", "Hβ", "Hα", "He I 4026", "He I 4471", "He I 5876", "He II 4200", "He II 4542", "He II 4686", "Ca II K", "Mg II 4481", "Si III 4552", "Ca I 4226", "G band (CH)", "TiO 4954", "TiO 5167", "TiO 6159", "Mg I b", "Na I D", "Fe I 4383", "Sr II 4077"]);
+const PRESETS = [
+  ["Full", 3900, 6800], ["Blue 3900–4500", 3900, 4500], ["3900–4200", 3900, 4200], ["4300–4500", 4300, 4500],
+  ["He / Mg II 4440–4720", 4440, 4720], ["Hβ · TiO 4800–5000", 4800, 5000], ["Mg b 5120–5230", 5120, 5230], ["Hα 6500–6620", 6500, 6620],
+];
+
+/* ================= Science content (from the course notes) ================= */
+const INFO = {
+  O: {
+    name: "O · the hottest stars",
+    sig: "He II absorption lines (4200, 4542, 4686) alongside H Balmer and He I. The spectrum is very clean, with few metal lines (N III, C III, Si IV).",
+    sub: "Main diagnostic is <b>He II 4542 / He I 4471</b>: about 1 at O7, larger in earlier types, smaller in later ones. At the extremes, use N IV 4058 / N III 4634-40-42 for O2–O3.5 (He I is gone before O4), and He II 4200 / He I 4144 (about 1 at O9) or Si III 4552 / He II 4542 (about 1 at O9.7) for the latest O types.",
+    lum: "<b>The Of phenomenon:</b> He II 4686 goes from strong absorption in dwarfs to emission in supergiants, and N III 4634-40-42 emission grows with luminosity. Si IV 4089 / Si II 4116 (positive effect) and narrower Balmer lines (negative effect) help too.",
+    hotter: "He II even stronger relative to He I (a larger He II 4542 / He I 4471 ratio), and in the earliest types no He I at all",
+    cooler: "He I stronger relative to He II (He II 4542 / He I 4471 below 1), with Si III 4552 starting to show by O9.7",
+    focus: [4100, 4720], diag: [4471.5, 4541.6, 4199.8, 4143.8], lumLines: [4685.7, 4640.6],
+  },
+  B: {
+    name: "B · He I takes over",
+    sig: "Strong He I absorption (4026, 4144, 4388, 4471) with no He II, or only a very faint He II in the earliest subtypes. Balmer lines are stronger than in O stars. Ionized metals appear: Si II–IV, Mg II, O II, N II, C II. Ca II K becomes noticeable from about B3.",
+    sub: "Three criteria you can combine: (1) He I against He II, which disappears by about B0.5–B1; (2) <b>Si IV 4089 / Si III 4552</b> (about 1 at B0.7), then Si III 4552 / Si II 4128-32 for mid-to-late B; (3) <b>Mg II 4481 / He I 4471</b>, which grows with subtype until it reaches about 1 at B8.",
+    lum: "Balmer lines get <b>narrower and weaker (lower EW)</b> as luminosity rises (negative effect). Si IV 4116 / He I 4121 and Si III 4552 / He I 4387 or 4471 increase with luminosity, and O II and N II 3995 strengthen. Watch out for the <b>diagonal effect</b>: a B5 III and a B8 Ib can have almost identical Balmer profiles.",
+    hotter: "stronger He I, traces of He II 4542 and Si IV 4089, and a weaker Mg II 4481 relative to He I 4471",
+    cooler: "weaker He I, Mg II 4481 catching up with He I 4471, Si II 4128-32 strengthening and Ca II K appearing",
+    focus: [4050, 4600], diag: [4471.5, 4481.2, 4088.9, 4552.6, 4128.1, 4541.6], lumLines: [4340.5, 4861.3],
+  },
+  A: {
+    name: "A · the Balmer maximum",
+    sig: "Balmer lines at their strongest (maximum around A2). He I is gone, or very weak at A0. Ca II K grows quickly with subtype. Metal lines are weak (Fe II, Mg II, Si II), and neutral metals start to appear.",
+    sub: "(1) Balmer strength rises from A0 to A2 and then declines. (2) <b>Ca II K 3934</b> grows strongly with subtype (Ca II H is blended with Hε). (3) Metal lines such as Ca I 4226, Fe I 4271 and Mn I 4030 grow with subtype. Si II 4128-32 is stronger than Mn I 4030-34 at A2 and weakens afterwards. Near the B/A boundary, Mg II 4481 / He I 4471 and Ca II K / He I 4026 are the key ratios.",
+    lum: "The width and EW of the Balmer lines are the main criterion. The effect is negative (narrower in supergiants) and very marked in early A. In late A, Balmer loses sensitivity, so use the Fe II/Ti II blends at 4172-79 and 4395-4400 (positive effect).",
+    hotter: "weaker Ca II K, almost no metal lines, and possibly a trace of He I 4471",
+    cooler: "a stronger Ca II K, more neutral-metal lines (Ca I 4226, Fe I 4271), and Balmer starting to fade past A2",
+    focus: [3900, 4500], diag: [3933.7, 4101.7, 4340.5, 4226.7, 4481.2, 4471.5], lumLines: [4340.5, 4861.3],
+  },
+  F: {
+    name: "F · metals start to dominate",
+    sig: "Ca II H & K very strong, Balmer weakening, and neutral metals appearing. The G band (CH, around 4300 Å) becomes prominent from F5.",
+    sub: "Metal lines grow relative to Balmer (at solar metallicity): <b>Fe I 4045 / Hδ</b>, <b>Ca I 4226 / Hγ</b> and <b>G band / Hγ</b> all increase toward later types, with ratios near 1 at the F–G transition. The weakening of Balmer alone already gives a good first estimate of the subtype.",
+    lum: "Up to F5, compare the Fe II/Ti II blends (λλ4172-8, 4395-4400) with luminosity-insensitive metals. In later types, the main criterion is <b>Sr II 4077 / 4216 against Fe I</b>, which is stronger in supergiants.",
+    hotter: "stronger, broader Balmer lines and weaker metal lines and G band",
+    cooler: "weaker Balmer lines with a stronger G band, Ca I 4226 and Fe I lines",
+    focus: [3990, 4400], diag: [4101.7, 4045.8, 4226.7, 4340.5, 4305], lumLines: [4077.7, 4045.8, 4374.9, 4383.5],
+  },
+  G: {
+    name: "G · Sun-like",
+    sig: "Balmer lines weak: Hγ is about as strong as the G band at G0 and inconspicuous by late G. The G band (CH) is well developed, neutral metals are strong, and Ca II H & K are very strong.",
+    sub: "<b>G band / Hγ</b>, <b>Fe I 4045 / Hδ</b> and Fe I 4144 / Hδ grow with subtype, and <b>Ca I 4226</b> strengthens as the temperature drops. The only real G subtypes are G0, G2, G5 and G8 (Keenan 1984).",
+    lum: "<b>Sr II 4077 / Fe I 4046</b> and <b>Y II 4376 / Fe I 4383</b> (the best blue criterion for G–K) increase with luminosity. CN bands deepen in giants and supergiants (the discontinuity near 4215 Å), while the G band and MgH show a negative effect.",
+    hotter: "Hγ comparable to or stronger than the G band, with weaker Ca I 4226 and Fe I lines",
+    cooler: "Hγ almost lost in the metal-line forest, with stronger Ca I 4226 and Fe I lines",
+    focus: [4000, 4400], diag: [4101.7, 4045.8, 4226.7, 4340.5, 4305], lumLines: [4077.7, 4045.8, 4374.9, 4383.5],
+  },
+  K: {
+    name: "K · neutral metals rule",
+    sig: "Neutral metal lines dominate the spectrum. Ca II H & K peak near K0, and Balmer lines are very weak (Hβ is lost in the metal forest). Ca I 4226 is prominent by mid-K, MgH and the Mg I b triplet are strong, and the continuum is clearly redder.",
+    sub: "<b>Ca I 4226</b> grows strongly with subtype and the <b>Mg I b 5167-72-83</b> triplet strengthens. At low metallicity, use Cr I 4254 / Fe I 4250 and Cr I 4290 / Fe I 4326. Late K giants show incipient TiO. The only real subtypes are K0–K5; K6–K9 are interpolations.",
+    lum: "<b>Sr II 4077 / Fe I 4046</b> and <b>Y II 4376 / Fe I 4383</b> increase with luminosity, and CN bands are deep in giants and supergiants. MgH (4780, 5200) is strong in mid-K dwarfs and barely visible in luminous stars (negative effect). TiO is visible in mid-K giants but not in K dwarfs.",
+    hotter: "weaker Ca I 4226 and Mg b, with Balmer lines still recognizable",
+    cooler: "a very strong Ca I 4226 and TiO bandheads (4954, 5167, 6159) starting to appear",
+    focus: [4150, 4450], diag: [4226.7, 4254.3, 4250.8, 4383.5, 4305], lumLines: [4077.7, 4045.8, 4374.9, 4383.5],
+  },
+  M: {
+    name: "M · molecular bands",
+    sig: "TiO molecular bands dominate, with bandheads at 4584, 4623, 4759, 4804, 4954, 5167 and 6159 Å. Metal and molecular lines form a dense forest, Ca II H & K are present but not intense, and the blue continuum is almost completely eroded.",
+    sub: "The type follows the <b>progressive appearance of the TiO bandheads</b>; ratios between TiO bands are preferred, since strong bands saturate. TiO 4954 saturates from about M3. Y II 4367 / Fe I 4383 remains valid up to about M5, and VO bands appear from M5.",
+    lum: "<b>Ca I 4226</b> is weak in giants and supergiants and very strong in dwarfs. TiO is much stronger in giants than in dwarfs of the same type. Supergiants barely reach M4.5 Ia.",
+    hotter: "weaker or no TiO bandheads",
+    cooler: "deeper TiO bands, saturated 4954 and VO from M5",
+    focus: [4150, 5250], diag: [4954, 4761, 4804, 5167, 4226.7], lumLines: [4226.7],
+  },
+};
+
+/* ================= Measurements & diagnostics ================= */
+const HOT = c => "OBA".includes(c);
+const det = x => x != null && x > 0.04;
+const ratio = (a, b) => (b != null && b > 0.05 && a != null) ? a / b : null;
+const fx = (x, d = 2) => x == null ? "—" : x.toFixed(d);
+const ew = x => x == null ? "—" : (x < -0.05 ? x.toFixed(2) + " Å (em.)" : det(x) ? x.toFixed(2) + " Å" : "not seen");
+
+const TEMP_DIAG = {
+  O: { label: "He II 4542 / He I 4471", f: m => ratio(m.HeII4542, m.HeI4471), dom: s => s.cls === "O" || (s.cls === "B" && s.sub <= 1), ref: [1, "≈1 at O7"] },
+  B: { label: "Mg II 4481 / He I 4471", f: m => ratio(m.MgII4481, m.HeI4471), dom: s => s.cls === "B" || (s.cls === "A" && s.sub <= 0) || (s.cls === "O" && s.sub >= 7), ref: [1, "≈1 at B8"] },
+  A: { label: "Ca II K equivalent width (Å)", f: m => m.CaIIK, dom: s => (s.cls === "B" && s.sub >= 5) || s.cls === "A" || (s.cls === "F" && s.sub <= 5) },
+  F: { label: "Ca I 4226 / Hγ (core)", f: m => ratio(m.CaI4226, m.HgammaCore), dom: s => "FGK".includes(s.cls) || (s.cls === "A" && s.sub >= 4) },
+  G: { label: "Ca I 4226 / Hγ (core)", f: m => ratio(m.CaI4226, m.HgammaCore), dom: s => "FGK".includes(s.cls) },
+  K: { label: "Ca I 4226 equivalent width (Å)", f: m => m.CaI4226, dom: s => "GKM".includes(s.cls) },
+  M: { label: "TiO 4954 bandhead depth", f: m => m.TiO4954, dom: s => "GKM".includes(s.cls) },
+};
+const LUM_DIAG = {
+  O: { label: "He II 4686 EW (Å; negative = emission)", f: m => m.HeII4686, dom: s => s.cls === "O", ref: [0, "absorption ↑ / emission ↓"] },
+  B: { label: "Hγ equivalent width (Å)", f: m => m.Hgamma, dom: s => "BA".includes(s.cls) },
+  A: { label: "Hγ equivalent width (Å)", f: m => m.Hgamma, dom: s => "BA".includes(s.cls) },
+  F: { label: "Sr II 4077 / Fe I 4046", f: m => ratio(m.SrII4077, m.FeI4046), dom: s => "FGK".includes(s.cls) },
+  G: { label: "Sr II 4077 / Fe I 4046", f: m => ratio(m.SrII4077, m.FeI4046), dom: s => "FGK".includes(s.cls) },
+  K: { label: "Y II 4376 / Fe I 4383", f: m => ratio(m.YII4376, m.FeI4383), dom: s => "FGKM".includes(s.cls) },
+  M: { label: "Ca I 4226 equivalent width (Å)", f: m => m.CaI4226, dom: s => "KM".includes(s.cls) },
+};
+
+function tilesFor(s) {
+  const m = s.meas;
+  if (HOT(s.cls)) return [
+    ["He II 4542", ew(m.HeII4542), "OB".includes(s.cls)], ["He I 4471", ew(m.HeI4471), s.cls !== "A"],
+    ["He II 4686", ew(m.HeII4686), s.cls === "O"], ["Mg II 4481", ew(m.MgII4481), s.cls !== "O"],
+    ["Si III 4552", ew(m.SiIII4552), s.cls === "B"], ["Hγ (±20 Å)", ew(m.Hgamma), s.cls !== "O"],
+    ["Ca II K", ew(m.CaIIK), s.cls === "A"],
+    ["He II 4542 / He I 4471", fx(ratio(m.HeII4542, m.HeI4471)), s.cls === "O"],
+    ["Mg II 4481 / He I 4471", fx(ratio(m.MgII4481, m.HeI4471)), s.cls === "B"],
+  ];
+  return [
+    ["Ca II K", ew(m.CaIIK), s.cls === "F"], ["Hδ core", ew(m.HdeltaCore), "FG".includes(s.cls)],
+    ["Hγ core", ew(m.HgammaCore), "FG".includes(s.cls)], ["G band (±10 Å)", ew(m.Gband), "FG".includes(s.cls)],
+    ["Ca I 4226", ew(m.CaI4226), "GKM".includes(s.cls)], ["Fe I 4046", ew(m.FeI4046), false],
+    ["Sr II 4077 / Fe I 4046", fx(ratio(m.SrII4077, m.FeI4046)), true],
+    ["Y II 4376 / Fe I 4383", fx(ratio(m.YII4376, m.FeI4383)), true],
+    ["TiO 4954 depth", m.TiO4954 > 0.03 ? (m.TiO4954 * 100).toFixed(0) + "%" : "none", "KM".includes(s.cls)],
+  ];
+}
+
+/* Observed hallmarks, phrased for the regime of the true star. */
+function observed(s) {
+  const m = s.meas;
+  if (s.cls === "O") return `He II 4542 is clearly present (${ew(m.HeII4542)}) next to He I 4471 (${ew(m.HeI4471)}), and the spectrum is almost free of metal lines.`;
+  if (s.cls === "B") return `He I 4471 is strong (${ew(m.HeI4471)}), He II 4542 is ${det(m.HeII4542) ? "only weak (" + ew(m.HeII4542) + ")" : "absent"}, Hγ has an EW of ${ew(m.Hgamma)}, and Ca II K is ${det(m.CaIIK) && m.CaIIK > 0.3 ? "weak (" + ew(m.CaIIK) + ", partly interstellar)" : "negligible"}.`;
+  if (s.cls === "A") return `The Balmer lines dominate (Hγ EW ${ew(m.Hgamma)}), He I 4471 is ${m.HeI4471 > 0.2 ? "only faint (" + ew(m.HeI4471) + ")" : "essentially gone"}, and Ca II K has an EW of ${ew(m.CaIIK)}.`;
+  if (s.cls === "F") return `Ca II K is already very strong (${ew(m.CaIIK)}), Balmer is still clear (Hγ core ${ew(m.HgammaCore)}), and the G band reaches an EW of about ${ew(m.Gband)}, with the metal lines growing.`;
+  if (s.cls === "G") return `The G band is well developed (${ew(m.Gband)}), Ca I 4226 has an EW of ${ew(m.CaI4226)}, and the Balmer cores are weak (Hγ core ${ew(m.HgammaCore)}) among many metal lines.`;
+  if (s.cls === "K") return `Neutral metals fill the spectrum: Ca I 4226 is ${ew(m.CaI4226)}, the Balmer lines are hard to pick out (Hγ core ${ew(m.HgammaCore)}), and the TiO 4954 bandhead is ${m.TiO4954 > 0.08 ? "only incipient (" + (m.TiO4954 * 100).toFixed(0) + "% depth)" : "absent"}.`;
+  return `TiO bandheads are clearly present (4954 bandhead ${(m.TiO4954 * 100).toFixed(0)}% deep), the blue continuum is eroded, and Ca I 4226 has an EW of ${ew(m.CaI4226)}.`;
+}
+
+function whyNotClass(gCls, s) {
+  const hotterTruth = CLASSES.indexOf(s.cls) < CLASSES.indexOf(gCls);
+  const crossRegime = HOT(gCls) !== HOT(s.cls);
+  let p = `<p>A <b>${gCls}</b> star would show: ${INFO[gCls].sig.replace(/\.$/, "")}.</p>`;
+  if (crossRegime && HOT(gCls)) p += `<p>This spectrum has none of the hot-star signatures. There are no isolated He lines, and the region around 4471–4542 Å is crowded with metal lines instead. The star is much cooler than you thought.</p>`;
+  else if (crossRegime) p += `<p>This spectrum is far too clean for a cool star. It lacks the forest of neutral-metal lines, the G band and strong Ca I 4226, so the star is much hotter than you thought.</p>`;
+  else p += `<p>Your guess is too ${hotterTruth ? "cool" : "hot"}. The star is ${hotterTruth ? "hotter" : "cooler"} than a ${gCls}.</p>`;
+  return p;
+}
+
+function whyNotSub(guess, s) {
+  const tooHot = guess.n < s.n;
+  const info = INFO[s.cls];
+  const td = TEMP_DIAG[s.cls];
+  const v = td.f(s.meas);
+  return `<p>At ${typeStr(guess.cls, guess.sub)} you would expect ${tooHot ? info.hotter : info.cooler}. ` +
+         `Here, <b>${td.label}</b> = <b>${fx(v)}</b>${td.ref ? ` (reference: ${td.ref[1]})` : ""}, which places it at ${typeStr(s.cls, s.sub)}. Your guess is a little too ${tooHot ? "early (hot)" : "late (cool)"}.</p>`;
+}
+
+function lumText(s, guessLC, mode) {
+  const m = s.meas, info = INFO[s.cls];
+  let obs = "";
+  if (s.cls === "O") obs = m.HeII4686 < -0.05
+      ? `Here He II 4686 is in <b>emission</b> (EW ${fx(m.HeII4686)} Å), which is the Of signature of a supergiant.`
+      : `Here He II 4686 is in <b>strong absorption</b> (EW ${fx(m.HeII4686)} Å), as in dwarfs.`;
+  else if ("BA".includes(s.cls)) obs = `Here Hγ has an EW of ${fx(m.Hgamma)} Å over a 40 Å window. ${s.lc === "I" ? "That is <b>narrow and weak</b> for its subtype, which points to a supergiant." : "That is <b>broad and strong</b>, as expected for a dwarf with high surface gravity."}`;
+  else if (s.cls === "M") obs = `Here Ca I 4226 has an EW of ${fx(m.CaI4226)} Å, ${s.lc === "I" ? "<b>weaker</b> than in M dwarfs, as expected for a supergiant." : "<b>very strong</b>, as expected for a dwarf."}`;
+  else obs = `Here Sr II 4077 / Fe I 4046 = <b>${fx(ratio(m.SrII4077, m.FeI4046))}</b> and Y II 4376 / Fe I 4383 = <b>${fx(ratio(m.YII4376, m.FeI4383))}</b>. ${s.lc === "I" ? "These <b>enhanced</b> ionized lines are a supergiant signature." : "These are <b>low</b>, as expected for a dwarf."}`;
+  let head = `This star is luminosity class <b>${s.lc}</b> (${LC_NAME[s.lc]}).`;
+  if (mode && guessLC && guessLC !== s.lc) head += ` You said ${guessLC} (${LC_NAME[guessLC]}).`;
+  return `<p>${head}</p><p>${info.lum}</p><p>${obs}</p>`;
+}
+
+/* Small dot-strip chart: diagnostic value vs spectral type for the 28 MELCHIORS stars. */
+function ladderSVG(diag, s, guessN, hl) {
+  const pts = DATA.filter(diag.dom).map(t => ({ x: t.n, y: diag.f(t.meas), lc: t.lc, me: t === s })).filter(p => p.y != null && isFinite(p.y));
+  if (pts.length < 2) return "";
+  const W = 420, H = 150, L = 40, R = 10, T = 12, B = 26;
+  let x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x));
+  if (guessN != null) { x0 = Math.min(x0, guessN); x1 = Math.max(x1, guessN); }
+  x0 -= 0.8; x1 += 0.8;
+  let y0 = Math.min(0, ...pts.map(p => p.y)), y1 = Math.max(...pts.map(p => p.y)) * 1.12;
+  if (diag.ref) { y0 = Math.min(y0, diag.ref[0]); y1 = Math.max(y1, diag.ref[0] * 1.1); }
+  const X = x => L + (x - x0) / (x1 - x0) * (W - L - R), Y = y => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${diag.label} across the MELCHIORS sample">`;
+  // axes & ticks
+  g += `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="${TOK("line")}"/>`;
+  const step = (x1 - x0) > 40 ? 10 : (x1 - x0) > 16 ? 5 : 2;
+  for (let v = Math.ceil(x0 / step) * step; v <= x1; v += step) {
+    const c = CLASSES[Math.floor(v / 10)]; if (!c) continue;
+    g += `<line x1="${X(v)}" y1="${H - B}" x2="${X(v)}" y2="${H - B + 4}" stroke="${TOK("line")}"/><text x="${X(v)}" y="${H - 8}" fill="${TOK("ink-dim")}" font-size="10" text-anchor="middle">${c}${v % 10}</text>`;
+  }
+  const ny = 3;
+  for (let i = 0; i <= ny; i++) {
+    const v = y0 + (y1 - y0) * i / ny;
+    g += `<line x1="${L}" y1="${Y(v)}" x2="${W - R}" y2="${Y(v)}" stroke="${TOK("line")}" stroke-opacity=".5"/><text x="${L - 5}" y="${Y(v) + 3}" fill="${TOK("ink-dim")}" font-size="10" text-anchor="end">${v.toFixed(Math.abs(y1 - y0) < 3 ? 2 : 1)}</text>`;
+  }
+  if (diag.ref) g += `<line x1="${L}" y1="${Y(diag.ref[0])}" x2="${W - R}" y2="${Y(diag.ref[0])}" stroke="${TOK("accent")}" stroke-opacity=".6" stroke-dasharray="4 3"/>`;
+  if (guessN != null) g += `<line x1="${X(guessN)}" y1="${T}" x2="${X(guessN)}" y2="${H - B}" stroke="${TOK("bad")}" stroke-dasharray="3 3"/><text x="${X(guessN) > W - 80 ? X(guessN) - 4 : X(guessN) + 4}" y="${T + 9}" fill="${TOK("bad")}" font-size="10" text-anchor="${X(guessN) > W - 80 ? "end" : "start"}">your guess</text>`;
+  for (const p of pts) {
+    const col = CLR[CLASSES[Math.floor(p.x / 10)]] || "#fff";
+    const shape = p.lc === "I"
+      ? `<rect x="${X(p.x) - 4}" y="${Y(p.y) - 4}" width="8" height="8" transform="rotate(45 ${X(p.x)} ${Y(p.y)})" fill="${col}" opacity="${p.me ? 1 : .55}"/>`
+      : `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="${col}" opacity="${p.me ? 1 : .55}"/>`;
+    g += shape;
+    if (p.me) g += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="9" fill="none" stroke="${hl}" stroke-width="2"/>`;
+  }
+  g += `</svg>`;
+  return `<div class="ladder"><div class="t">${diag.label}</div>${g}<div class="fine">This star (ringed) among the MELCHIORS sample · ● dwarfs (V) ◆ supergiants (I)</div></div>`;
+}
+
+/* ================= Game state ================= */
+DATA.forEach((s, i) => { s.idx = i; s.n = num(s.cls, s.sub); });
+const state = {
+  queue: [], current: null, round: 0, score: 0, streak: 0, best: 0, cleared: new Set(), first: {},
+  attempts: 0, hinted: false, answered: false, lcMode: false, smooth: false,
+  view: [3900, 6800], showLines: false, groupsOn: new Set(Object.keys(GROUPS)), focusLines: [],
+  pick: { cls: null, sub: null, half: false, lc: null },
+};
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("spectredle." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("spectredle." + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+};
+
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function newRun() {
+  state.queue = shuffle(DATA.map(s => s.idx));
+  state.round = 0; state.score = 0; state.streak = 0; state.best = 0; state.cleared = new Set(); state.first = {};
+  $("endscreen").hidden = true;
+  nextStar();
+}
+
+function nextStar() {
+  if (!state.queue.length) return endRun();
+  state.current = DATA[state.queue.shift()];
+  state.round++; state.hinted = false; state.answered = false; state.attempts = 0;
+  state.showLines = false; state.focusLines = []; state.view = [3900, 6800];
+  state.pick = { cls: null, sub: null, half: false, lc: null };
+  $("answer").value = ""; $("msg").textContent = "";
+  $("feedback").hidden = true; $("feedback").innerHTML = "";
+  $("btnGo").disabled = false;
+  $("target").innerHTML = `Spectrum #${state.round} <small>rectified · MELCHIORS · star hidden</small>`;
+  syncPads(); updateLinesUI(); updateHUD(); draw();
+  $("answer").focus({ preventScroll: true });
+}
+
+function updateHUD() {
+  $("sScore").textContent = state.score;
+  $("sStreak").textContent = state.streak;
+  $("sCleared").textContent = `${state.cleared.size}/${DATA.length}`;
+}
+
+/* ================= Parsing & grading ================= */
+function parseAnswer(txt) {
+  const t = txt.toUpperCase().replace(/\s+/g, "");
+  const m = t.match(/^([OBAFGKM])(\d(?:\.\d+)?)?(IA\+|IAB|IA|IB|III|II|IV|V|I)?$/);
+  if (!m) return { err: "Type a spectral type like B2, O7.5 or K4.5 I." };
+  if (m[2] == null) return { err: `Add a subtype, e.g. ${m[1]}${m[1] === "O" ? "7" : "2"}.` };
+  const sub = parseFloat(m[2]);
+  if (m[1] === "O" && sub < 2) return { err: "O subtypes run from O2 to O9.7." };
+  let lc = m[3] || null;
+  if (lc && lc.startsWith("I") && !["II", "III", "IV"].includes(lc)) lc = "I";
+  return { cls: m[1], sub, lc, n: num(m[1], sub) };
+}
+
+/* Within one subtype counts as a near miss. G0–K0 only has the real subtypes G0, G2, G5, G8, K0
+   (Keenan 1984), so the neighbouring real subtype also counts. */
+const REAL_GK = [40, 42, 45, 48, 50];
+function gradeType(gn, tn) {
+  const d = Math.abs(gn - tn);
+  if (d < 0.01) return "exact";
+  if (d <= 1.001) return "near";
+  const nearestIdx = n => REAL_GK.reduce((bi, v, i) => Math.abs(v - n) < Math.abs(REAL_GK[bi] - n) ? i : bi, 0);
+  if (gn >= 40 && gn <= 50 && tn >= 40 && tn <= 50 && Math.abs(nearestIdx(gn) - nearestIdx(tn)) <= 1) return "near";
+  return "miss";
+}
+const isNear = (gn, tn) => gradeType(gn, tn) !== "miss";
+
+function submit() {
+  if (state.answered) return;
+  const g = parseAnswer($("answer").value);
+  if (g.err) { $("msg").textContent = g.err; shake($("answer")); return; }
+  if (state.lcMode && !g.lc) { $("msg").textContent = "Expert mode: add a luminosity class (I–V), e.g. B2 V."; shake($("answer")); return; }
+  $("msg").textContent = "";
+  const s = state.current;
+  const tRes = gradeType(g.n, s.n);
+  let lRes = null;
+  if (state.lcMode) { const dl = Math.abs(lcRank(g.lc) - lcRank(s.lc)); lRes = dl === 0 ? "exact" : dl === 1 ? "near" : "miss"; }
+  const pass = tRes !== "miss" && (!state.lcMode || lRes !== "miss");
+
+  let pts = 0;
+  if (pass) {
+    pts = tRes === "exact" ? 100 : 70;
+    if (state.lcMode) pts += lRes === "exact" ? 50 : 25;
+    if (state.hinted) pts = Math.round(pts * 0.7);
+    state.streak++; state.best = Math.max(state.best, state.streak);
+    pts += Math.min(50, (state.streak - 1) * 10);
+    state.score += pts; state.cleared.add(s.idx);
+  } else {
+    state.streak = 0;
+    const pos = Math.min(state.queue.length, 3 + Math.floor(Math.random() * 3));
+    state.queue.splice(pos, 0, s.idx);
+  }
+  if (!(s.idx in state.first)) state.first[s.idx] = pass ? (tRes === "exact" && (!state.lcMode || lRes === "exact") ? "exact" : "near") : "miss";
+  state.answered = true; $("btnGo").disabled = true;
+  state.showLines = true;
+  state.focusLines = INFO[s.cls].diag.concat(state.lcMode ? INFO[s.cls].lumLines : []);
+  $("target").innerHTML = `Spectrum #${state.round} <small>${s.star} · ${typeStr(s.cls, s.sub)} ${s.lc} · MELCHIORS ${s.melchiors}</small>`;
+  updateLinesUI(); updateHUD(); draw();
+  renderFeedback(g, s, tRes, lRes, pass, pts);
+}
+
+function renderFeedback(g, s, tRes, lRes, pass, pts) {
+  const fb = $("feedback");
+  const truth = typeStr(s.cls, s.sub) + " " + s.lc;
+  const verdict = !pass ? "Not quite" : (tRes === "exact" && (lRes == null || lRes === "exact")) ? "Spot on!" : "Close enough!";
+  const cls = !pass ? "bad" : verdict === "Spot on!" ? "good" : "near";
+  const info = INFO[s.cls];
+  const gStr = typeStr(g.cls, g.sub) + (g.lc ? " " + g.lc : "");
+
+  let why = `<div><h3>Why it's ${s.cls}</h3><p>${info.sig}</p><div class="callout"><b>In this spectrum:</b> ${observed(s)}</div></div>`;
+  why += `<div><h3>Pinning the subtype</h3><p>${info.sub}</p></div>`;
+  if (tRes !== "exact") {
+    why += `<div class="callout ${tRes === "near" ? "warn" : ""}"><h3>Why not ${typeStr(g.cls, g.sub)}?</h3>` +
+      (!isNear(g.n, s.n) && g.cls !== s.cls
+        ? whyNotClass(g.cls, s) + `<p>Within class ${s.cls}, <b>${TEMP_DIAG[s.cls].label}</b> = <b>${fx(TEMP_DIAG[s.cls].f(s.meas))}</b>${TEMP_DIAG[s.cls].ref ? " (reference: " + TEMP_DIAG[s.cls].ref[1] + ")" : ""}, which places it at ${typeStr(s.cls, s.sub)}.</p>`
+        : whyNotSub(g, s)) + `</div>`;
+  }
+  why += `<div><h3>Luminosity class</h3>${lumText(s, g.lc, state.lcMode)}</div>`;
+
+  const tiles = tilesFor(s).map(([k, v, key]) => `<div class="tile ${key ? "key-tile" : ""}"><span>${k}</span><b>${v}</b></div>`).join("");
+  const side = `<div><h3>Measured in this spectrum</h3><div class="tiles">${tiles}</div>
+    <p class="fine" style="margin-top:8px">EWs are integrated automatically over fixed windows on the rectified spectrum, so treat them as approximate (blends inflate them in cool stars). Highlighted tiles are the diagnostics for class ${s.cls}.</p></div>
+    ${ladderSVG(TEMP_DIAG[s.cls], s, g.n, CLR[s.cls])}
+    ${ladderSVG(LUM_DIAG[s.cls], s, null, CLR[s.cls])}`;
+
+  fb.innerHTML = `
+    <div class="fb-head ${cls}">
+      <div class="verdict">${verdict}</div>
+      <div class="truth">You said <b>${gStr}</b> · it is <b>${truth}</b> <span class="fine">(${s.star})</span></div>
+      <div class="points">${pass ? "+" + pts : "Returns later"}</div>
+    </div>
+    <div class="fb-body"><div class="why">${why}</div><div class="why">${side}</div></div>
+    <div class="fb-foot">
+      <button class="ghost" id="btnFocus" type="button">Zoom to the diagnostic lines</button>
+      <button class="go" id="btnNext" type="button">${state.queue.length ? "NEXT SPECTRUM →" : "SEE RESULTS →"}</button>
+    </div>`;
+  fb.hidden = false; fb.classList.remove("pop"); void fb.offsetWidth; fb.classList.add("pop");
+  $("btnNext").onclick = nextStar;
+  $("btnFocus").onclick = () => { state.view = info.focus.slice(); draw(); document.querySelector(".screen").scrollIntoView({ behavior: "smooth", block: "start" }); };
+  $("btnNext").focus({ preventScroll: true });
+  fb.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+function shake(el) { el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+
+function endRun() {
+  const firstTry = Object.values(state.first);
+  const exact = firstTry.filter(v => v === "exact").length, near = firstTry.filter(v => v === "near").length;
+  const best = Math.max(store.get("best", 0), state.score); store.set("best", best);
+  $("endStats").innerHTML = `<div><b>${state.score}</b><span>Score</span></div><div><b>${exact + near}/${DATA.length}</b><span>First try</span></div><div><b>${state.best}</b><span>Best streak</span></div><div><b>${best}</b><span>Personal best</span></div>`;
+  const col = { exact: "var(--good)", near: "var(--near)", miss: "var(--bad)" };
+  $("endGrid").innerHTML = DATA.slice().sort((a, b) => a.n - b.n).map(s => `<div style="background:${col[state.first[s.idx]] || "var(--line)"}" title="${s.star} ${typeStr(s.cls, s.sub)} ${s.lc}">${typeStr(s.cls, s.sub)}</div>`).join("");
+  $("endscreen").hidden = false; $("btnAgain").focus();
+}
+
+function shareText() {
+  const sq = { exact: "🟩", near: "🟨", miss: "🟥" };
+  const rows = []; const seq = DATA.slice().sort((a, b) => a.n - b.n).map(s => sq[state.first[s.idx]] || "⬛");
+  for (let i = 0; i < seq.length; i += 7) rows.push(seq.slice(i, i + 7).join(""));
+  return `Spectredle ${state.score} pts · ${Object.values(state.first).filter(v => v !== "miss").length}/${DATA.length} first try${state.lcMode ? " · expert" : ""}\nO → M\n${rows.join("\n")}`;
+}
+
+/* ================= Pickers ================= */
+function buildPads() {
+  const pc = $("padClass");
+  for (const c of CLASSES) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "key cls"; b.textContent = c; b.id = "k-" + c;
+    b.style.setProperty("--c", CLR[c]); b.onclick = () => { state.pick.cls = c; fromPick(); }; pc.appendChild(b);
+  }
+  const ps = $("padSub");
+  for (let i = 0; i <= 9; i++) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "key small"; b.textContent = i; b.id = "k-s" + i;
+    b.onclick = () => { state.pick.sub = i; fromPick(); }; ps.appendChild(b);
+  }
+  const h = document.createElement("button"); h.type = "button"; h.className = "key small"; h.textContent = ".5"; h.id = "k-half";
+  h.title = "Half subtype (e.g. O7.5, K4.5)"; h.onclick = () => { state.pick.half = !state.pick.half; fromPick(); }; ps.appendChild(h);
+  const pl = $("padLC");
+  for (const l of LCS) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "key small"; b.textContent = l; b.id = "k-lc" + l;
+    b.onclick = () => { state.pick.lc = state.pick.lc === l ? null : l; fromPick(); }; pl.appendChild(b);
+  }
+}
+function fromPick() {
+  const p = state.pick;
+  let s = p.cls || "";
+  if (p.sub != null) s += p.sub + (p.half ? ".5" : "");
+  if (p.lc) s += " " + p.lc;
+  $("answer").value = s; syncPads();
+}
+function syncPads() {
+  const g = $("answer").value.toUpperCase().replace(/\s+/g, "");
+  const m = g.match(/^([OBAFGKM])?(\d)?(\.\d+)?(IA\+|IAB|IA|IB|III|II|IV|V|I)?/) || [];
+  state.pick.cls = m[1] || null; state.pick.sub = m[2] != null ? +m[2] : null; state.pick.half = !!m[3];
+  state.pick.lc = m[4] ? (["II", "III", "IV", "V"].includes(m[4]) ? m[4] : "I") : null;
+  for (const c of CLASSES) $("k-" + c).classList.toggle("sel", state.pick.cls === c);
+  for (let i = 0; i <= 9; i++) {
+    const b = $("k-s" + i); b.classList.toggle("sel", state.pick.sub === i);
+    b.disabled = state.pick.cls === "O" && i < 2;
+  }
+  $("k-half").classList.toggle("sel", state.pick.half);
+  for (const l of LCS) $("k-lc" + l).classList.toggle("sel", state.pick.lc === l);
+}
+
+/* ================= Spectrum plot ================= */
+const cv = $("plot"), ctx = cv.getContext("2d");
+let drag = null, hoverX = null, smoothCache = new Map();
+const PAD = { l: 46, r: 12, t: 40, b: 28 };
+
+function fluxOf(s) {
+  if (!state.smooth) return s.flux;
+  if (smoothCache.has(s.idx)) return smoothCache.get(s.idx);
+  // Gaussian kernel: FWHM = lambda / 2500 at ~4500 A, on a 0.4 A grid -> sigma ~ 0.77 A
+  const sig = (4500 / 2500) / 2.355 / s.dw, r = Math.ceil(sig * 3), k = [];
+  let sum = 0; for (let i = -r; i <= r; i++) { const v = Math.exp(-0.5 * (i / sig) ** 2); k.push(v); sum += v; }
+  const f = s.flux, out = new Float32Array(f.length);
+  for (let i = 0; i < f.length; i++) { let a = 0, w = 0; for (let j = -r; j <= r; j++) { const q = i + j; if (q >= 0 && q < f.length) { a += f[q] * k[j + r]; w += k[j + r]; } } out[i] = a / w; }
+  smoothCache.set(s.idx, out); return out;
+}
+
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); draw();
+}
+
+function draw() {
+  const s = state.current; if (!s) return;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  ctx.clearRect(0, 0, W, H);
+  const [a, b] = state.view, f = fluxOf(s);
+  const i0 = Math.max(0, Math.floor((a - s.w0) / s.dw)), i1 = Math.min(f.length - 1, Math.ceil((b - s.w0) / s.dw));
+  let lo = Infinity, hi = -Infinity;
+  for (let i = i0; i <= i1; i++) { if (f[i] < lo) lo = f[i]; if (f[i] > hi) hi = f[i]; }
+  const y0 = Math.min(0, lo - 0.03), y1 = Math.max(1.15, hi + 0.05);
+  const X = w => PAD.l + (w - a) / (b - a) * (W - PAD.l - PAD.r);
+  const Y = v => PAD.t + (1 - (v - y0) / (y1 - y0)) * (H - PAD.t - PAD.b);
+
+  // grid
+  ctx.font = "11px 'JetBrains Mono', monospace"; ctx.fillStyle = TOK("ink-dim"); ctx.strokeStyle = "rgba(255,240,220,.07)"; ctx.lineWidth = 1;
+  const span = b - a, nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+  const st = nice.find(v => span / v <= 9) || 1000;
+  ctx.textAlign = "center";
+  for (let w = Math.ceil(a / st) * st; w <= b; w += st) { const x = X(w); ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, H - PAD.b); ctx.stroke(); ctx.fillText(w, x, H - 9); }
+  ctx.textAlign = "right";
+  for (let v = 0; v <= y1 + 1e-6; v += 0.25) { if (v < y0) continue; const y = Y(v); ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke(); ctx.fillText(v.toFixed(2), PAD.l - 6, y + 4); }
+  ctx.save(); ctx.translate(12, (PAD.t + H - PAD.b) / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.fillText("F / F_cont", 0, 0); ctx.restore();
+  // continuum
+  ctx.strokeStyle = "rgba(255,143,63,.45)"; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(PAD.l, Y(1)); ctx.lineTo(W - PAD.r, Y(1)); ctx.stroke(); ctx.setLineDash([]);
+
+  // focus bands (after answer)
+  if (state.focusLines.length) {
+    ctx.fillStyle = "rgba(255,143,63,.13)";
+    for (const l of state.focusLines) { if (l < a || l > b) continue; const half = Math.max(3, 2.2 / span * (W - PAD.l - PAD.r)); ctx.fillRect(X(l) - half, PAD.t, half * 2, H - PAD.t - PAD.b); }
+  }
+  // line markers
+  if (state.showLines) {
+    const span = b - a, rows = [[], [], []]; ctx.font = "10.5px 'DM Sans', sans-serif"; ctx.textAlign = "left";
+    for (const [l, lab, grp] of LINES) {
+      if (l < a || l > b || !state.groupsOn.has(grp)) continue;
+      if (span > 900 && !MAJOR.has(lab) && !state.focusLines.includes(l)) continue;
+      const x = X(l), c = GROUPS[grp].color;
+      ctx.strokeStyle = c + "88"; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, H - PAD.b); ctx.stroke(); ctx.setLineDash([]);
+      if (!lab) continue;
+      const tw = ctx.measureText(lab).width;
+      for (let r = 0; r < 3; r++) {
+        if (rows[r].every(([s0, s1]) => x + 2 > s1 + 4 || x + 2 + tw < s0 - 4)) { rows[r].push([x + 2, x + 2 + tw]); ctx.fillStyle = c; ctx.fillText(lab, x + 2, 12 + r * 12); break; }
+      }
+    }
+  }
+  // spectrum: min/max envelope per pixel column
+  ctx.save(); ctx.beginPath(); ctx.rect(PAD.l, PAD.t - 4, W - PAD.l - PAD.r, H - PAD.t - PAD.b + 4); ctx.clip();
+  const grad = ctx.createLinearGradient(PAD.l, 0, W - PAD.r, 0);
+  grad.addColorStop(0, "#f2ece1"); grad.addColorStop(1, "#f2ece1");
+  ctx.strokeStyle = grad; ctx.lineWidth = 1.15; ctx.beginPath();
+  const pxPer = (W - PAD.l - PAD.r) / ((i1 - i0) || 1);
+  if (pxPer >= 1) { for (let i = i0; i <= i1; i++) { const x = X(s.w0 + i * s.dw), y = Y(f[i]); i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } }
+  else {
+    let col = -1, mn = 0, mx = 0, first = true;
+    for (let i = i0; i <= i1; i++) {
+      const x = Math.floor(X(s.w0 + i * s.dw));
+      if (x !== col) { if (col >= 0) { if (first) { ctx.moveTo(col, Y(mx)); first = false; } else ctx.lineTo(col, Y(mx)); ctx.lineTo(col, Y(mn)); } col = x; mn = mx = f[i]; }
+      else { if (f[i] < mn) mn = f[i]; if (f[i] > mx) mx = f[i]; }
+    }
+    ctx.lineTo(col, Y(mx)); ctx.lineTo(col, Y(mn));
+  }
+  ctx.stroke(); ctx.restore();
+
+  // true-colour wavelength strip along the x axis
+  for (let x = PAD.l; x < W - PAD.r; x += 2) { ctx.fillStyle = waveRGB(a + (x - PAD.l) / (W - PAD.l - PAD.r) * span); ctx.fillRect(x, H - PAD.b + 1, 2, 4); }
+
+  // drag selection & hover
+  if (drag && drag.moved) { ctx.fillStyle = "rgba(255,143,63,.15)"; ctx.strokeStyle = TOK("accent"); const x0 = Math.min(drag.x0, drag.x1), w = Math.abs(drag.x1 - drag.x0); ctx.fillRect(x0, PAD.t, w, H - PAD.t - PAD.b); ctx.strokeRect(x0 + .5, PAD.t + .5, w, H - PAD.t - PAD.b); }
+  if (hoverX != null && hoverX > PAD.l && hoverX < W - PAD.r) {
+    ctx.strokeStyle = "rgba(255,240,220,.3)"; ctx.beginPath(); ctx.moveTo(hoverX, PAD.t); ctx.lineTo(hoverX, H - PAD.b); ctx.stroke();
+    const w = a + (hoverX - PAD.l) / (W - PAD.l - PAD.r) * (b - a), i = Math.round((w - s.w0) / s.dw);
+    let near = "";
+    if (state.showLines) { let best = 1e9; for (const [l, lab, grp] of LINES) { const d = Math.abs(l - w); if (lab && d < best && d < Math.max(1.5, span / 300) && state.groupsOn.has(grp)) { best = d; near = " · " + lab; } } }
+    $("readout").textContent = `λ ${w.toFixed(1)} Å · F/Fc ${f[i] != null ? f[i].toFixed(3) : "—"}${near}`;
+  }
+}
+
+/* Approximate perceived colour of a wavelength (Å), for the strip under the axis. */
+function waveRGB(l) {
+  const n = l / 10; let r = 0, g = 0, b = 0;
+  if (n < 440) { r = -(n - 440) / 50; b = 1; } else if (n < 490) { g = (n - 440) / 50; b = 1; }
+  else if (n < 510) { g = 1; b = -(n - 510) / 20; } else if (n < 580) { r = (n - 510) / 70; g = 1; }
+  else if (n < 645) { r = 1; g = -(n - 645) / 65; } else { r = 1; }
+  const f = n < 420 ? 0.35 + 0.65 * (n - 390) / 30 : n > 650 ? Math.max(0.35, 1 - (n - 650) / 60) : 1;
+  return `rgb(${Math.round(255 * r * f)},${Math.round(255 * g * f)},${Math.round(255 * b * f)})`;
+}
+
+function pxToW(px) { const W = cv.clientWidth, [a, b] = state.view; return a + (px - PAD.l) / (W - PAD.l - PAD.r) * (b - a); }
+function setView(a, b) { a = Math.max(3900, a); b = Math.min(6800, b); if (b - a < 8) { const c = (a + b) / 2; a = c - 4; b = c + 4; } state.view = [a, b]; draw(); }
+cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); const x = e.offsetX; drag = { x0: x, x1: x, moved: false }; });
+cv.addEventListener("pointermove", e => { hoverX = e.offsetX; if (drag) { drag.x1 = e.offsetX; drag.moved = Math.abs(drag.x1 - drag.x0) > 6; } draw(); });
+cv.addEventListener("pointerup", () => { if (drag && drag.moved) { const w0 = pxToW(Math.min(drag.x0, drag.x1)), w1 = pxToW(Math.max(drag.x0, drag.x1)); drag = null; setView(w0, w1); } else { drag = null; draw(); } });
+cv.addEventListener("pointerleave", () => { hoverX = null; $("readout").textContent = "λ — Å · F/Fc —"; draw(); });
+cv.addEventListener("dblclick", () => setView(3900, 6800));
+cv.addEventListener("wheel", e => { e.preventDefault(); const w = pxToW(e.offsetX), [a, b] = state.view, k = e.deltaY > 0 ? 1.25 : 0.8; setView(w - (w - a) * k, w + (b - w) * k); }, { passive: false });
+
+/* ================= Toolbar ================= */
+function buildToolbar() {
+  const pr = $("presets");
+  for (const [lab, a, b] of PRESETS) { const c = document.createElement("button"); c.type = "button"; c.className = "chip"; c.textContent = lab; c.onclick = () => setView(a, b); pr.appendChild(c); }
+  const lg = $("legend");
+  for (const [k, g] of Object.entries(GROUPS)) {
+    const l = document.createElement("label");
+    l.innerHTML = `<input type="checkbox" id="grp-${k}" checked><span class="sw" style="background:${g.color}"></span>${g.name}`;
+    l.querySelector("input").onchange = e => { e.target.checked ? state.groupsOn.add(k) : state.groupsOn.delete(k); draw(); };
+    lg.appendChild(l);
+  }
+}
+function updateLinesUI() {
+  const b = $("btnLines");
+  b.classList.toggle("on", state.showLines);
+  b.textContent = state.answered ? (state.showLines ? "Hide line IDs" : "Show line IDs") : state.hinted ? (state.showLines ? "Hide line IDs (hint used)" : "Show line IDs (hint used)") : "Show line IDs (hint, −30% pts)";
+  $("legend").hidden = !state.showLines;
+}
+$("btnLines").onclick = () => { if (!state.answered) state.hinted = true; state.showLines = !state.showLines; updateLinesUI(); draw(); };
+$("btnSmooth").onclick = () => { state.smooth = !state.smooth; $("btnSmooth").classList.toggle("on", state.smooth); draw(); };
+
+/* ================= Wiring ================= */
+$("btnGo").onclick = submit;
+$("answer").addEventListener("input", syncPads);
+$("answer").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); state.answered ? nextStar() : submit(); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("help").hidden = true; });
+$("optLC").onchange = e => { state.lcMode = e.target.checked; store.set("lc", state.lcMode); };
+$("btnHelp").onclick = () => { $("help").hidden = false; $("btnHelpClose").focus(); };
+$("btnHelpClose").onclick = () => { $("help").hidden = true; store.set("seen", true); $("answer").focus(); };
+$("btnAgain").onclick = newRun;
+$("btnCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(shareText()); $("copyMsg").textContent = "Copied to clipboard."; }
+  catch { $("copyMsg").innerHTML = "Copy failed. Select and copy this text:<pre style='white-space:pre-wrap'>" + shareText() + "</pre>"; }
+};
+window.addEventListener("resize", resize);
+
+/* ================= Boot ================= */
+buildPads(); buildToolbar();
+state.lcMode = store.get("lc", false); $("optLC").checked = state.lcMode;
+if (!DATA.length) { $("target").textContent = "Could not load spectra.js: keep it next to index.html."; }
+else { newRun(); resize(); if (!store.get("seen", false)) $("help").hidden = false; }
+</script>
+</body>
+</html>
