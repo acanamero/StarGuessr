@@ -6,7 +6,7 @@ game explains the right answer using line-ratio criteria and equivalent widths m
 
 **Play:** https://acanamero.github.io/StarGuessr/
 
-- 31 stars from O4 to M1, dwarfs (V) and supergiants (I)
+- 28 stars from O4 to M1, dwarfs (V) and supergiants (I)
 - Exact answer: 100 pts; within one subtype: 70 pts with an explanation of why it isn't that type
 - Expert mode also grades the luminosity class
 - `StarGuessr_study_sheet.xlsx`: criteria per spectral class, ratio summary, line list, suffixes and a self-quiz
