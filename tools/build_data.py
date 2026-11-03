@@ -37,10 +37,21 @@ def ew(w, f, l0, hw, cont=None):
         cont = max(min(cont, 1.05), 0.3)
     return float(np.trapezoid(1 - f[m] / cont, w[m]))
 
+NAME_RE = re.compile(
+    r"^(?P<star>.+?)_(?P<cls>[OBAFGKM])(?P<sub>\d+(?:\.\d+)?)\s*"
+    r"(?P<lc>Ia\+|Iab|Ia|Ib|III|II|IV|V|I)"
+    r"(?:_[Mm]elchiors_?(?P<mid>\d+))?$")
+
 def parse(name):
-    m = re.match(r"(.+?)_([OBAFGKM])(\d+(?:\.\d+)?)(I|II|III|IV|V)_Melchiors(\d+)", name)
-    star, cls, sub, lc, mid = m.groups()
-    return dict(star=star.replace("HD", "HD "), cls=cls, sub=float(sub), lc=lc, melchiors=mid)
+    """Read star, spectral type and luminosity class from a file name such as
+    HD12345_B2V_Melchiors123456. Returns None if the name doesn't fit."""
+    m = NAME_RE.match(name.strip())
+    if not m:
+        return None
+    lc_full = m["lc"]
+    lc = "I" if lc_full.startswith("I") and lc_full not in ("II", "III", "IV") else lc_full
+    return dict(star=m["star"].replace("HD", "HD "), cls=m["cls"], sub=float(m["sub"]),
+                lc=lc, lc_full=lc_full, melchiors=m["mid"] or "")
 
 def tio(w, f, head):
     # TiO bandhead depth: flux just blueward vs redward of head
@@ -48,11 +59,15 @@ def tio(w, f, head):
     red = np.median(f[(w > head + 2) & (w < head + 12)])
     return float(1 - red / blue)
 
-stars = []
+stars, skipped = [], []
 d = sys.argv[1]
 for fn in sorted(os.listdir(d)):
     if not fn.endswith(".dat"): continue
     meta = parse(fn[:-4])
+    if meta is None:
+        skipped.append(fn)
+        print(f"SKIPPED {fn}: the name must look like HD12345_B2V_Melchiors123456.dat")
+        continue
     w, f = load(os.path.join(d, fn))
     hot = meta["cls"] in "OBA"
     meas = {}
@@ -76,4 +91,8 @@ for fn in sorted(os.listdir(d)):
 
 with open(sys.argv[2], "w") as fo:
     fo.write("window.SPECTRA = " + json.dumps(stars, separators=(",", ":")) + ";\n")
-print("wrote", len(stars))
+print("wrote", len(stars), "spectra to", sys.argv[2])
+if skipped:
+    print(f"\n{len(skipped)} file(s) skipped because of their names. Rename them and run again:")
+    for fn in skipped:
+        print("  -", fn)
